@@ -4,6 +4,8 @@ document.addEventListener("DOMContentLoaded", () => {
   const signupForm = document.getElementById("signup-form");
   const messageDiv = document.getElementById("message");
 
+  let currentEmail = "";
+
   // Function to fetch activities from API
   async function fetchActivities() {
     try {
@@ -26,7 +28,18 @@ document.addEventListener("DOMContentLoaded", () => {
             <h5>Participants</h5>
             ${
               details.participants.length > 0
-                ? `<ul>${details.participants.map(p => `<li>${p}</li>`).join("")}</ul>`
+                ? `<ul>
+                    ${details.participants.map(p => `
+                      <li>
+                        ${p}
+                        ${
+                          currentEmail && p === currentEmail
+                            ? `<button class="deregister-btn" data-activity="${encodeURIComponent(name)}" data-email="${encodeURIComponent(p)}" title="Deregister" style="margin-left:8px;padding:2px 8px;font-size:0.9em;background:#c62828;">Deregister</button>`
+                            : ""
+                        }
+                      </li>
+                    `).join("")}
+                  </ul>`
                 : `<span style="color:#888;">No participants yet.</span>`
             }
           </div>
@@ -48,9 +61,48 @@ document.addEventListener("DOMContentLoaded", () => {
         option.textContent = name;
         activitySelect.appendChild(option);
       });
+
+      // Attach deregister event listeners
+      document.querySelectorAll(".deregister-btn").forEach(btn => {
+        btn.addEventListener("click", async (e) => {
+          const activity = btn.getAttribute("data-activity");
+          const email = btn.getAttribute("data-email");
+          await deregisterFromActivity(activity, email);
+        });
+      });
     } catch (error) {
       activitiesList.innerHTML = "<p>Failed to load activities. Please try again later.</p>";
       console.error("Error fetching activities:", error);
+    }
+  }
+
+  // Function to deregister from an activity
+  async function deregisterFromActivity(activity, email) {
+    try {
+      const response = await fetch(
+        `/activities/${activity}/deregister?email=${email}`,
+        { method: "POST" }
+      );
+      const result = await response.json();
+
+      if (response.ok) {
+        messageDiv.textContent = result.message || "You have been deregistered.";
+        messageDiv.className = "success";
+      } else {
+        messageDiv.textContent = result.detail || "An error occurred during deregistration.";
+        messageDiv.className = "error";
+      }
+      messageDiv.classList.remove("hidden");
+      fetchActivities();
+
+      setTimeout(() => {
+        messageDiv.classList.add("hidden");
+      }, 5000);
+    } catch (error) {
+      messageDiv.textContent = "Failed to deregister. Please try again.";
+      messageDiv.className = "error";
+      messageDiv.classList.remove("hidden");
+      console.error("Error deregistering:", error);
     }
   }
 
@@ -60,6 +112,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     const email = document.getElementById("email").value;
     const activity = document.getElementById("activity").value;
+    currentEmail = email; // Track current email for deregister buttons
 
     try {
       const response = await fetch(
@@ -81,6 +134,9 @@ document.addEventListener("DOMContentLoaded", () => {
       }
 
       messageDiv.classList.remove("hidden");
+
+      // Refresh activities to update participants/deregister buttons
+      fetchActivities();
 
       // Hide message after 5 seconds
       setTimeout(() => {
